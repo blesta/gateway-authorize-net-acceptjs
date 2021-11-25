@@ -1,0 +1,96 @@
+<div id="authorizenet-cc-form">
+    <?php
+    if (($meta['sandbox'] ?? 'false') == 'true') {
+        ?>
+        <script type="text/javascript" src="https://jstest.authorize.net/v1/Accept.js" charset="utf-8"></script>
+    <?php
+    } else {
+    ?>
+        <script type="text/javascript" src="https://js.authorize.net/v1/Accept.js" charset="utf-8"></script>
+        <?php
+    }
+    ?>
+
+    <div class="form-group">
+        <?php
+        $this->Form->label($this->_('AuthorizeNetAcceptjs.field_number', true), 'cardNumber');
+        $this->Form->fieldText('cardNumber', null, ['id' => 'cardNumber', 'class' => 'form-control', 'placeholder' => $this->_('ClientAccounts.cc_info.field_number', true)]);
+        ?>
+    </div>
+    <div class="form-group">
+        <?php $this->Form->label($this->_('AuthorizeNetAcceptjs.field_security', true), 'cardCode');?>
+        <a href="#" data-toggle="tooltip" title="<?php $this->_('AuthorizeNetAcceptjs.tooltip_code');?>"><i class="fas fa-question-circle text-info"></i></a>
+        <?php $this->Form->fieldText('cardCode', null, ['id' => 'cardCode', 'class' => 'form-control', 'placeholder' => $this->_('ClientAccounts.cc_info.field_security', true)]);?>
+    </div>
+    <div class="form-group">
+        <?php $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expiration');?>
+        <div class="form-inline">
+            <?php
+            $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth', 'class' => 'form-control form-control-sm']);
+            $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear', 'class' => 'form-control form-control-sm']);
+            ?>
+        </div>
+        <?php
+        $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
+        $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
+        $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
+        $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
+        ?>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            // Process form
+            $('#authorizenet-cc-form').closest('form').on('submit', processCard);
+
+            // BETA: Hide Save Account
+            $('#payment_details_cc input[name="save_details"]').parent().hide();
+        });
+
+        function processCard(event) {
+            event.preventDefault();
+
+            // Send data to Authorize.net
+            var authData = {};
+            authData.clientKey = '<?php echo $this->Html->safe($client_key ?? ''); ?>';
+            authData.apiLoginID = '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>';
+
+            var cardData = {};
+            cardData.cardNumber = $('#cardNumber').val();
+            cardData.month = $('#expMonth').val();
+            cardData.year = $('#expYear').val();
+            cardData.cardCode = $('#cardCode').val();
+            cardData.fullName = $('#first_name').val();
+            cardData.zip = $('#zip').val();
+
+            // Dispatch data
+            var secureData = {};
+            secureData.authData = authData;
+            secureData.cardData = cardData;
+
+            Accept.dispatchData(secureData, responseHandler);
+        }
+
+        function responseHandler(response) {
+            if (response.messages.resultCode !== "Error") {
+                $('#dataValue').val(response.opaqueData.dataValue);
+                $('#dataDescriptor').val(response.opaqueData.dataDescriptor);
+
+                // Pass the serialized opaque data as the reference id
+                var card = $('#cardNumber').val();
+                $('#reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
+                $('#last4').val(card.substring(0, 4));
+
+                // Remove secure data
+                $('#cardNumber').val('');
+                $('#expMonth').val('');
+                $('#expYear').val('');
+                $('#cardCode').val('');
+            }
+
+            $('#authorizenet-cc-form').closest('form').off('submit', processCard);
+            $(this).blestaEnableFormSubmission($('#authorizenet-cc-form').closest('form'));
+            $('#authorizenet-cc-form').closest('form').submit();
+        }
+    </script>
+</div>
