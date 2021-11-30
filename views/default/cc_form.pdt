@@ -32,7 +32,9 @@
     $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
     $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
     $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
+    $this->Form->fieldHidden('client_reference_id', '', ['id' => 'client_reference_id']);
     $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
+    $this->Form->fieldHidden('expiration', '', ['id' => 'expiration']);
     ?>
 </div>
 <style>
@@ -131,8 +133,16 @@
 
                 // Pass the serialized opaque data as the reference id
                 var card = $('#cardNumber').val();
+                var masked_card = card.substring(0, 4);
+
+                for (let i = 4; i < card.length; i++) {
+                    masked_card += '0';
+                }
+
                 $('#reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
-                $('#last4').val(card.substring(0, 4));
+                $('#client_reference_id').val(masked_card);
+                $('#last4').val(card.substring(card.length-4, card.length));
+                $('#expiration').val($('#expYear').val() + $('#expMonth').val());
 
                 // Remove secure data
                 $('#cardNumber').val('');

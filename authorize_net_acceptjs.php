@@ -61,12 +61,6 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         Loader::loadHelpers($this, ['Form', 'Html']);
         Loader::loadModels($this, ['GatewayManager']);
 
-        // Set the APIs available through this gateway
-        $this->view->set('apis', [
-            'aim' => Language::_('AuthorizeNetAcceptjs.apis_aim', true),
-            'cim' => Language::_('AuthorizeNetAcceptjs.apis_cim', true)
-        ]);
-
         // Set the validation modes for CIM
         $this->view->set('validation_modes', [
             'none' => Language::_('AuthorizeNetAcceptjs.validation_modes_none', true),
@@ -330,7 +324,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/authCaptureTransaction',
-            serialize($response->getMessages()),
+            serialize($response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -451,7 +445,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/authOnlyTransaction',
-            serialize($response->getMessages()),
+            serialize($response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -485,6 +479,13 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Load api
         $this->loadApi('ACCEPT');
 
+        // Execute api call, only if the transaction_id is not empty
+        if (empty($transaction_id)) {
+            $this->Input->setErrors($this->getCommonError('unsupported'));
+
+            return;
+        }
+
         // Log input
         $masked_params = compact('reference_id', 'transaction_id', 'amount', 'invoice_amounts');
         $this->log('/priorAuthCaptureTransaction', serialize($masked_params), 'input', true);
@@ -517,7 +518,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/priorAuthCaptureTransaction',
-            serialize($response->getMessages()),
+            serialize($response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -546,6 +547,13 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
     {
         // Load api
         $this->loadApi('ACCEPT');
+
+        // Execute api call, only if the transaction_id is not empty
+        if (empty($transaction_id)) {
+            $this->Input->setErrors($this->getCommonError('unsupported'));
+
+            return;
+        }
 
         // Log input
         $masked_params = compact('reference_id', 'transaction_id');
@@ -579,7 +587,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/voidTransaction',
-            serialize($response->getMessages()),
+            serialize($response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -620,7 +628,11 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $request->setTransId($transaction_id);
         $controller = new net\authorize\api\controller\GetTransactionDetailsController($request);
 
-        $response = $controller->executeWithApiResponse( \net\authorize\api\constants\ANetEnvironment::SANDBOX);
+        $response = $controller->executeWithApiResponse(
+            $this->meta['sandbox'] == 'true'
+                ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+        );
         $masked_credit_card = $response->getTransaction()->getPayment()->getCreditCard();
 
         // Create a refund transaction
@@ -660,7 +672,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/refundTransaction',
-            serialize($response->getMessages()),
+            serialize($response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -729,11 +741,13 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
     {
         // Load api
         $this->loadApi('ACCEPT');
+        Loader::loadModels($this, ['Accounts']);
 
         // Log input
         $masked_params = $card_info;
+        $masked_params['client_reference_id'] = '****';
         $masked_params['reference_id'] = '****';
-        $this->log('/authOnlyTransaction', serialize($masked_params), 'input', true);
+        $this->log('/CreateCustomerProfileRequest', serialize($masked_params), 'input', true);
 
         // Unserialize reference id
         $data = $this->unserializeReference($card_info['reference_id']);
@@ -746,6 +760,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Create customer profile
         $payment_type = new net\authorize\api\contract\v1\PaymentType();
         $payment_type->setOpaqueData($opaque_data);
+        $card_type = $this->Accounts->creditCardType($card_info['client_reference_id'] ?? '');
 
         $customer_address = new net\authorize\api\contract\v1\CustomerAddressType();
         $customer_address->setFirstName($card_info['first_name'] ?? '');
@@ -774,6 +789,9 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $request->setRefId($profile_reference);
         $request->setProfile($customer_profile);
 
+        $card_info['client_reference_id'] = '';
+        $card_info['reference_id'] = '';
+
         // Create the controller and get the response
         try {
             $controller = new net\authorize\api\controller\CreateCustomerProfileController($request);
@@ -784,19 +802,25 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             );
         } catch (Throwable $e) {
             $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
+            $this->log('/CreateCustomerProfileRequest', serialize(['refund' => $e->getMessage()]), 'output');
 
             return;
         }
 
-        /*$reference_id = [
-            $profile_reference,
-            $response->getCustomerProfileId(),
-            $response->getCustomerPaymentProfileIdList()[0] ?? ''
-        ];*/
+        // Log response
+        $this->log(
+            '/CreateCustomerProfileRequest',
+            serialize($response),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
 
         return [
             'client_reference_id' => $response->getCustomerProfileId(),
-            'reference_id' => $response->getCustomerPaymentProfileIdList()[0] ?? ''
+            'reference_id' => $response->getCustomerPaymentProfileIdList()[0] ?? '',
+            'last4' => $card_info['last4'] ?? '',
+            'expiration' => $card_info['card_exp'] ?? '',
+            'type' => $card_type
         ];
     }
 
@@ -1019,6 +1043,8 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      */
     private function loadApi($type)
     {
+        Loader::load(dirname(__FILE__) . DS . 'vendor' . DS . 'authorizenet' . DS . 'authorizenet' . DS . 'autoload.php');
+
         $type = strtolower($type);
         switch ($type) {
             case 'cim':
