@@ -14,12 +14,6 @@
         </li>
         <li>
             <?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.api', true));
-            $this->Form->fieldSelect('api', $apis ?? [], ($meta['api'] ?? null), ['id' => 'api_to_use']);
-            ?>
-        </li>
-        <li class="cim_options">
-            <?php
             $this->Form->label($this->_('AuthorizeNetAcceptjs.validation_mode', true));
             $this->Form->fieldSelect('validation_mode', $validation_modes ?? [], ($meta['validation_mode'] ?? null));
             ?>
@@ -33,19 +27,3 @@
             <span class="tooltip"><?php $this->_('AppController.tooltip.text');?><div><?php $this->_('AuthorizeNetAcceptjs.sandbox_note');?></div></span>
         </li>
 	</ul>
-
-    <script type="text/javascript">
-        $(document).ready(function() {
-            $('li.cim_options').hide();
-
-            if ($('#api_to_use').val() == 'cim')
-                $('li.cim_options').show();
-
-            $('#api_to_use').change(function() {
-                if ($(this).val() == 'cim')
-                    $('li.cim_options').show();
-                else
-                    $('li.cim_options').hide();
-            });
-        });
-    </script>

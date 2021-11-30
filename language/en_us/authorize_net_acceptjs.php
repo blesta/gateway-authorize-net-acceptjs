@@ -13,14 +13,10 @@ $lang['AuthorizeNetAcceptjs.description'] = 'Send secure payment data directly t
 $lang['AuthorizeNetAcceptjs.field_number'] = 'Number';
 $lang['AuthorizeNetAcceptjs.field_security'] = 'Security Code';
 $lang['AuthorizeNetAcceptjs.field_expiration'] = 'Expiration Date';
-$lang['AuthorizeNetAcceptjs.tooltip_code'] = 'The 3 or 4 digit security code, usually found on the back of the card.';
 
 // Settings
 $lang['AuthorizeNetAcceptjs.login_id'] = 'Login ID';
 $lang['AuthorizeNetAcceptjs.transaction_key'] = 'Transaction Key';
-$lang['AuthorizeNetAcceptjs.api'] = 'Payment API';
-$lang['AuthorizeNetAcceptjs.apis_aim'] = 'AIM (default)';
-$lang['AuthorizeNetAcceptjs.apis_cim'] = 'CIM (must be enabled by Authorize.Net)';
 $lang['AuthorizeNetAcceptjs.validation_mode'] = 'Payment Account Validation Mode';
 $lang['AuthorizeNetAcceptjs.validation_note'] = "This controls what type of validation is performed when a payment account is stored using CIM. 'None' performs no additional validation. 'Test' issues a test transaction that does not appear on the customer's statement but will generate an email to the merchant. 'Live' processes a $0.00 or $0.01 transaction that is immediately voided. Consult your Merchant Account Provider before setting this value to 'Live' as you may be subject to fees.";
 $lang['AuthorizeNetAcceptjs.validation_modes_none'] = 'None';

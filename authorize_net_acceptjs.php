@@ -166,7 +166,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      */
     public function requiresCcStorage()
     {
-        return isset($this->meta['api']) && $this->meta['api'] == 'cim';
+        return true;
     }
 
     /**
@@ -256,7 +256,91 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      */
     public function processCc(array $card_info, $amount, array $invoice_amounts = null)
     {
-        return $this->processStoredCc(null, $card_info['reference_id'], $amount, $invoice_amounts);
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = $card_info;
+        $masked_params['reference_id'] = '****';
+        $this->log('/authCaptureTransaction', serialize($masked_params), 'input', true);
+
+        // Unserialize reference id
+        $data = $this->unserializeReference($card_info['reference_id']);
+
+        // Create the payment object for a payment nonce
+        $opaque_data = new net\authorize\api\contract\v1\OpaqueDataType();
+        $opaque_data->setDataDescriptor($data['data_descriptor']);
+        $opaque_data->setDataValue($data['data_value']);
+
+        // Create payment type
+        $payment_type = new net\authorize\api\contract\v1\PaymentType();
+        $payment_type->setOpaqueData($opaque_data);
+
+        // Create order
+        $order = new net\authorize\api\contract\v1\OrderType();
+        $order->setInvoiceNumber($this->getChargeInvoice($invoice_amounts));
+        $order->setDescription($this->getChargeDescription($invoice_amounts));
+
+        // Set customer address
+        $customer_address = new net\authorize\api\contract\v1\CustomerAddressType();
+        $customer_address->setFirstName($card_info['first_name'] ?? '');
+        $customer_address->setLastName($card_info['last_name'] ?? '');
+        $customer_address->setAddress($card_info['address1'] ?? '');
+        $customer_address->setCity($card_info['city'] ?? '');
+        $customer_address->setState($card_info['state']['code'] ?? '');
+        $customer_address->setZip($card_info['zip'] ?? '00000');
+        $customer_address->setCountry($card_info['country']['alpha3'] ?? '');
+
+        // Set customer identifying information
+        $reference_id = substr(md5($card_info['reference_id'] ?? ''), 0 ,18);
+        $customer_data = new net\authorize\api\contract\v1\CustomerDataType();
+        $customer_data->setType('individual');
+        $customer_data->setId($reference_id);
+
+        // Create a transaction
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('authCaptureTransaction');
+        $transaction->setAmount($amount);
+        $transaction->setOrder($order);
+        $transaction->setPayment($payment_type);
+        $transaction->setBillTo($customer_address);
+        $transaction->setCustomer($customer_data);
+
+        // Assemble the complete transaction request
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        // Create the controller and get the response
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
+            $this->log('/authCaptureTransaction', serialize(['authorize' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/authCaptureTransaction',
+            serialize($response->getMessages()),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'accepted' : 'declined',
+            'reference_id' => substr(md5($card_info['reference_id'] ?? ''), 0 ,18),
+            'transaction_id' => $response->getTransactionResponse()->getTransId() ?? '',
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
     }
 
     /**
@@ -295,6 +379,361 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
     {
         // Load api
         $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = $card_info;
+        $masked_params['reference_id'] = '****';
+        $this->log('/authOnlyTransaction', serialize($masked_params), 'input', true);
+
+        // Unserialize reference id
+        $data = $this->unserializeReference($card_info['reference_id']);
+
+        // Create the payment object for a payment nonce
+        $opaque_data = new net\authorize\api\contract\v1\OpaqueDataType();
+        $opaque_data->setDataDescriptor($data['data_descriptor']);
+        $opaque_data->setDataValue($data['data_value']);
+
+        // Create payment type
+        $payment_type = new net\authorize\api\contract\v1\PaymentType();
+        $payment_type->setOpaqueData($opaque_data);
+
+        // Create order
+        $order = new net\authorize\api\contract\v1\OrderType();
+        $order->setInvoiceNumber($this->getChargeInvoice($invoice_amounts));
+        $order->setDescription($this->getChargeDescription($invoice_amounts));
+
+        // Set customer address
+        $customer_address = new net\authorize\api\contract\v1\CustomerAddressType();
+        $customer_address->setFirstName($card_info['first_name'] ?? '');
+        $customer_address->setLastName($card_info['last_name'] ?? '');
+        $customer_address->setAddress($card_info['address1'] ?? '');
+        $customer_address->setCity($card_info['city'] ?? '');
+        $customer_address->setState($card_info['state']['code'] ?? '');
+        $customer_address->setZip($card_info['zip'] ?? '00000');
+        $customer_address->setCountry($card_info['country']['alpha3'] ?? '');
+
+        // Set customer identifying information
+        $reference_id = substr(md5($card_info['reference_id'] ?? ''), 0 ,18);
+        $customer_data = new net\authorize\api\contract\v1\CustomerDataType();
+        $customer_data->setType('individual');
+        $customer_data->setId($reference_id);
+
+        // Create a transaction
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('authOnlyTransaction');
+        $transaction->setAmount($amount);
+        $transaction->setOrder($order);
+        $transaction->setPayment($payment_type);
+        $transaction->setBillTo($customer_address);
+        $transaction->setCustomer($customer_data);
+
+        // Assemble the complete transaction request
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        // Create the controller and get the response
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
+            $this->log('/authOnlyTransaction', serialize(['authorize' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/authOnlyTransaction',
+            serialize($response->getMessages()),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'pending' : 'declined',
+            'reference_id' => substr(md5($card_info['reference_id'] ?? ''), 0 ,18),
+            'transaction_id' => $response->getTransactionResponse()->getTransId() ?? '',
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
+    }
+
+    /**
+     * Capture the funds of a previously authorized credit card
+     *
+     * @param string $reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The transaction ID for the previously authorized transaction
+     * @param float $amount The amount to capture on this card
+     * @param array $invoice_amounts An array of invoices, each containing:
+     *  - id The ID of the invoice being processed
+     *  - amount The amount being processed for this invoice (which is included in $amount)
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard
+     *      message for this transaction status (optional)
+     */
+    public function captureCc($reference_id, $transaction_id, $amount, array $invoice_amounts = null)
+    {
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = compact('reference_id', 'transaction_id', 'amount', 'invoice_amounts');
+        $this->log('/priorAuthCaptureTransaction', serialize($masked_params), 'input', true);
+
+        // Create a transaction
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('priorAuthCaptureTransaction');
+        $transaction->setRefTransId($transaction_id);
+
+        // Send request
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['capture' => $e->getMessage()]]);
+            $this->log('/priorAuthCaptureTransaction', serialize(['capture' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/priorAuthCaptureTransaction',
+            serialize($response->getMessages()),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'declined',
+            'reference_id' => $reference_id,
+            'transaction_id' => $transaction_id,
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
+    }
+
+    /**
+     * Void a credit card charge
+     *
+     * @param string $reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The transaction ID for the previously authorized transaction
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard
+     *      message for this transaction status (optional)
+     */
+    public function voidCc($reference_id, $transaction_id)
+    {
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = compact('reference_id', 'transaction_id');
+        $this->log('/voidTransaction', serialize($masked_params), 'input', true);
+
+        // Create a transaction
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('voidTransaction');
+        $transaction->setRefTransId($transaction_id);
+
+        // Void transaction
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['void' => $e->getMessage()]]);
+            $this->log('/voidTransaction', serialize(['void' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/voidTransaction',
+            serialize($response->getMessages()),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'void' : 'error',
+            'reference_id' => $reference_id,
+            'transaction_id' => $transaction_id,
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
+    }
+
+    /**
+     * Refund a credit card charge
+     *
+     * @param string $reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The transaction ID for the previously authorized transaction
+     * @param float $amount The amount to refund this card
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard
+     *      message for this transaction status (optional)
+     */
+    public function refundCc($reference_id, $transaction_id, $amount)
+    {
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = compact('reference_id', 'transaction_id');
+        $this->log('/refundTransaction', serialize($masked_params), 'input', true);
+
+        // Get transaction
+        $request = new net\authorize\api\contract\v1\GetTransactionDetailsRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setTransId($transaction_id);
+        $controller = new net\authorize\api\controller\GetTransactionDetailsController($request);
+
+        $response = $controller->executeWithApiResponse( \net\authorize\api\constants\ANetEnvironment::SANDBOX);
+        $masked_credit_card = $response->getTransaction()->getPayment()->getCreditCard();
+
+        // Create a refund transaction
+        $credit_card = new net\authorize\api\contract\v1\CreditCardType();
+        $credit_card->setCardNumber($masked_credit_card->getCardNumber());
+        $credit_card->setExpirationDate($masked_credit_card->getExpirationDate());
+
+        $payment = new net\authorize\api\contract\v1\PaymentType();
+        $payment->setCreditCard($credit_card);
+
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('refundTransaction');
+        $transaction->setAmount($amount);
+        $transaction->setPayment($payment);
+        $transaction->setRefTransId($transaction_id);
+
+        // Refund transaction
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['refund' => $e->getMessage()]]);
+            $this->log('/refundTransaction', serialize(['refund' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/refundTransaction',
+            serialize($response->getMessages()),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'refunded' : 'error',
+            'reference_id' => $reference_id,
+            'transaction_id' => $transaction_id,
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
+    }
+
+    /**
+     * Store a credit card off site
+     *
+     * @param array $card_info An array of card info to store off site including:
+     *  - first_name The first name on the card
+     *  - last_name The last name on the card
+     *  - card_number The card number
+     *  - card_exp The card expiration date
+     *  - card_security_code The 3 or 4 digit security code of the card (if available)
+     *  - address1 The address 1 line of the card holder
+     *  - address2 The address 2 line of the card holder
+     *  - city The city of the card holder
+     *  - state An array of state info including:
+     *      - code The 2 or 3-character state code
+     *      - name The local name of the country
+     *  - country An array of country info including:
+     *      - alpha2 The 2-character country code
+     *      - alpha3 The 3-character country code
+     *      - name The english name of the country
+     *      - alt_name The local name of the country
+     *  - zip The zip/postal code of the card holder
+     * @param array $contact An array of contact information for the billing contact this
+     *  account is to be set up under including:
+     *  - id The ID of the contact
+     *  - client_id The ID of the client this contact resides under
+     *  - user_id The ID of the user this contact represents
+     *  - contact_type The contact type
+     *  - contact_type_id The reference ID for this custom contact type
+     *  - contact_type_name The name of the contact type
+     *  - first_name The first name of the contact
+     *  - last_name The last name of the contact
+     *  - title The title of the contact
+     *  - company The company name of the contact
+     *  - email The email address of the contact
+     *  - address1 The address of the contact
+     *  - address2 The address line 2 of the contact
+     *  - city The city of the contact
+     *  - state An array of state info including:
+     *      - code The 2 or 3-character state code
+     *      - name The local name of the country
+     *  - country An array of country info including:
+     *      - alpha2 The 2-character country code
+     *      - alpha3 The 3-character country code
+     *      - name The english name of the country
+     *      - alt_name The local name of the country
+     *  - zip The zip/postal code of the contact
+     *  - date_added The date/time the contact was added
+     * @param string $client_reference_id The reference ID for the client on the remote gateway (if one exists)
+     * @return mixed False on failure or an array containing:
+     *  - client_reference_id The reference ID for this client
+     *  - reference_id The reference ID for this payment account
+     */
+    public function storeCc(array $card_info, array $contact, $client_reference_id = null)
+    {
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = $card_info;
+        $masked_params['reference_id'] = '****';
+        $this->log('/authOnlyTransaction', serialize($masked_params), 'input', true);
 
         // Unserialize reference id
         $data = $this->unserializeReference($card_info['reference_id']);
@@ -349,26 +788,98 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             return;
         }
 
-        $reference_id = [
+        /*$reference_id = [
             $profile_reference,
             $response->getCustomerProfileId(),
             $response->getCustomerPaymentProfileIdList()[0] ?? ''
-        ];
+        ];*/
 
         return [
-            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'pending' : 'declined',
-            'reference_id' => base64_encode(implode('|', $reference_id)),
-            'transaction_id' => null,
-            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+            'client_reference_id' => $response->getCustomerProfileId(),
+            'reference_id' => $response->getCustomerPaymentProfileIdList()[0] ?? ''
         ];
     }
 
     /**
-     * Capture the funds of a previously authorized credit card
+     * Update a credit card stored off site
      *
-     * @param string $reference_id The reference ID for the previously authorized transaction
-     * @param string $transaction_id The transaction ID for the previously authorized transaction
-     * @param float $amount The amount to capture on this card
+     * @param array $card_info An array of card info to store off site including:
+     *  - first_name The first name on the card
+     *  - last_name The last name on the card
+     *  - card_number The card number
+     *  - card_exp The card expiration date
+     *  - card_security_code The 3 or 4 digit security code of the card (if available)
+     *  - address1 The address 1 line of the card holder
+     *  - address2 The address 2 line of the card holder
+     *  - city The city of the card holder
+     *  - state An array of state info including:
+     *      - code The 2 or 3-character state code
+     *      - name The local name of the country
+     *  - country An array of country info including:
+     *      - alpha2 The 2-character country code
+     *      - alpha3 The 3-character country code
+     *      - name The english name of the country
+     *      - alt_name The local name of the country
+     *  - zip The zip/postal code of the card holder
+     *  - account_changed True if the account details (bank account or card number, etc.)
+     *  have been updated, false otherwise
+     * @param array $contact An array of contact information for the billing contact this
+     *  account is to be set up under including:
+     *  - id The ID of the contact
+     *  - client_id The ID of the client this contact resides under
+     *  - user_id The ID of the user this contact represents
+     *  - contact_type The contact type
+     *  - contact_type_id The reference ID for this custom contact type
+     *  - contact_type_name The name of the contact type
+     *  - first_name The first name of the contact
+     *  - last_name The last name of the contact
+     *  - title The title of the contact
+     *  - company The company name of the contact
+     *  - email The email address of the contact
+     *  - address1 The address of the contact
+     *  - address2 The address line 2 of the contact
+     *  - city The city of the contact
+     *  - state An array of state info including:
+     *      - code The 2 or 3-character state code
+     *      - name The local name of the country
+     *  - country An array of country info including:
+     *      - alpha2 The 2-character country code
+     *      - alpha3 The 3-character country code
+     *      - name The english name of the country
+     *      - alt_name The local name of the country
+     *  - zip The zip/postal code of the contact
+     *  - date_added The date/time the contact was added
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @return mixed False on failure or an array containing:
+     *  - client_reference_id The reference ID for this client
+     *  - reference_id The reference ID for this payment account
+     */
+    public function updateCc(array $card_info, array $contact, $client_reference_id, $account_reference_id)
+    {
+        return $this->storeCc($card_info, $contact, $client_reference_id);
+    }
+
+    /**
+     * Remove a credit card stored off site
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to remove
+     * @return array An array containing:
+     *  - client_reference_id The reference ID for this client
+     *  - reference_id The reference ID for this payment account
+     */
+    public function removeCc($client_reference_id, $account_reference_id)
+    {
+        $this->Input->setErrors($this->getCommonError('unsupported'));
+    }
+
+    /**
+     * Charge a credit card stored off site
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @param float $amount The amount to process
      * @param array $invoice_amounts An array of invoices, each containing:
      *  - id The ID of the invoice being processed
      *  - amount The amount being processed for this invoice (which is included in $amount)
@@ -379,274 +890,29 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      *  - message The message to be displayed in the interface in addition to the standard
      *      message for this transaction status (optional)
      */
-    public function captureCc($reference_id, $transaction_id, $amount, array $invoice_amounts = null)
-    {
-        // Load api
-        $this->loadApi('ACCEPT');
-
-        // Unserialize data
-        $data = explode('|', base64_decode($reference_id));
-
-        // Charge payment profile
-        $payment_profile = new net\authorize\api\contract\v1\PaymentProfileType();
-        $payment_profile->setPaymentProfileId($data[2] ?? '');
-
-        $profile = new net\authorize\api\contract\v1\CustomerProfilePaymentType();
-        $profile->setCustomerProfileId($data[1] ?? '');
-        $profile->setPaymentProfile($payment_profile);
-
-        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
-        $transaction->setTransactionType('authCaptureTransaction');
-        $transaction->setAmount($amount);
-        $transaction->setProfile($profile);
-
-        // Send request
-        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
-        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
-        $request->setRefId($data[0] ?? '');
-        $request->setTransactionRequest($transaction);
-
-        try {
-            $controller = new net\authorize\api\controller\CreateTransactionController($request);
-            $response = $controller->executeWithApiResponse(
-                $this->meta['sandbox'] == 'true'
-                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
-                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
-            );
-        } catch (Throwable $e) {
-            $this->Input->setErrors(['authnet_error' => ['capture' => $e->getMessage()]]);
-
-            return;
-        }
-
-        return [
-            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'declined',
-            'reference_id' => $data[0] ?? '',
-            'transaction_id' => $response->getTransactionResponse()->getTransId() ?? '',
-            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
-        ];
-    }
-
-    /**
-     * Void a credit card charge
-     *
-     * @param string $reference_id The reference ID for the previously authorized transaction
-     * @param string $transaction_id The transaction ID for the previously authorized transaction
-     * @return array An array of transaction data including:
-     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
-     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
-     *  - transaction_id The ID returned by the remote gateway to identify this transaction
-     *  - message The message to be displayed in the interface in addition to the standard
-     *      message for this transaction status (optional)
-     */
-    public function voidCc($reference_id, $transaction_id)
-    {
-        // Load api
-        /*$this->loadApi('ACCEPT');
-
-        // Create a transaction
-        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
-        $transaction->setTransactionType('voidTransaction');
-        $transaction->setRefTransId($transaction_id);
-
-        // Void transaction
-        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
-        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
-        $request->setRefId($reference_id);
-        $request->setTransactionRequest($transaction);
-
-        try {
-            $controller = new net\authorize\api\controller\CreateTransactionController($request);
-            $response = $controller->executeWithApiResponse(
-                $this->meta['sandbox'] == 'true'
-                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
-                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
-            );
-        } catch (Throwable $e) {
-            $this->Input->setErrors(['authnet_error' => ['void' => $e->getMessage()]]);
-
-            return;
-        }
-
-        return [
-            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'void' : 'error',
-            'reference_id' => $reference_id,
-            'transaction_id' => $transaction_id,
-            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
-        ];*/
-
-        $this->Input->setErrors($this->getCommonError('unsupported'));
-    }
-
-    /**
-     * Refund a credit card charge
-     *
-     * @param string $reference_id The reference ID for the previously authorized transaction
-     * @param string $transaction_id The transaction ID for the previously authorized transaction
-     * @param float $amount The amount to refund this card
-     * @return array An array of transaction data including:
-     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
-     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
-     *  - transaction_id The ID returned by the remote gateway to identify this transaction
-     *  - message The message to be displayed in the interface in addition to the standard
-     *      message for this transaction status (optional)
-     */
-    public function refundCc($reference_id, $transaction_id, $amount)
-    {
-        // Load api
-        $this->loadApi('ACCEPT');
-
-        // Get transaction
-        $request = new net\authorize\api\contract\v1\GetTransactionDetailsRequest();
-        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
-        $request->setTransId($transaction_id);
-        $controller = new net\authorize\api\controller\GetTransactionDetailsController($request);
-
-        $response = $controller->executeWithApiResponse( \net\authorize\api\constants\ANetEnvironment::SANDBOX);
-        $masked_credit_card = $response->getTransaction()->getPayment()->getCreditCard();
-
-        // Create a void transaction
-        $credit_card = new net\authorize\api\contract\v1\CreditCardType();
-        $credit_card->setCardNumber($masked_credit_card->getCardNumber());
-        $credit_card->setExpirationDate($masked_credit_card->getExpirationDate());
-
-        $payment = new net\authorize\api\contract\v1\PaymentType();
-        $payment->setCreditCard($credit_card);
-
-        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
-        $transaction->setTransactionType('refundTransaction');
-        $transaction->setAmount($amount);
-        $transaction->setPayment($payment);
-        $transaction->setRefTransId($transaction_id);
-
-        // Refund transaction
-        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
-        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
-        $request->setRefId($reference_id);
-        $request->setTransactionRequest($transaction);
-
-        try {
-            $controller = new net\authorize\api\controller\CreateTransactionController($request);
-            $response = $controller->executeWithApiResponse(
-                $this->meta['sandbox'] == 'true'
-                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
-                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
-            );
-        } catch (Throwable $e) {
-            $this->Input->setErrors(['authnet_error' => ['void' => $e->getMessage()]]);
-
-            return;
-        }
-
-        return [
-            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'refunded' : 'error',
-            'reference_id' => $reference_id,
-            'transaction_id' => $transaction_id,
-            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
-        ];
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function storeCc(array $card_info, array $contact, $client_reference_id = null)
-    {
-        // Load api
-        $this->loadApi('ACCEPT');
-
-        /*// Create the payment object for a payment nonce
-        $opaque_data = new net\authorize\api\contract\v1\OpaqueDataType();
-        $opaque_data->setDataDescriptor($data['data_descriptor']);
-        $opaque_data->setDataValue($data['data_value']);
-
-        // Create customer profile
-        $payment_type = new net\authorize\api\contract\v1\PaymentType();
-        $payment_type->setOpaqueData($opaque_data);
-
-        $customer_address = new net\authorize\api\contract\v1\CustomerAddressType();
-        $customer_address->setFirstName($card_info['first_name'] ?? '');
-        $customer_address->setLastName($card_info['last_name'] ?? '');
-        $customer_address->setAddress($card_info['address1'] ?? '');
-        $customer_address->setCity($card_info['city'] ?? '');
-        $customer_address->setState($card_info['state']['code'] ?? '');
-        $customer_address->setZip($card_info['zip'] ?? '00000');
-        $customer_address->setCountry($card_info['country']['alpha3'] ?? '');
-
-        // Set the customer's identifying information
-        $profile_reference = substr(md5($card_info['reference_id'] ?? ''), 0 ,18);
-        $customer_data = new net\authorize\api\contract\v1\CustomerDataType();
-        $customer_data->setType('individual');
-        $customer_data->setId($profile_reference);
-
-        // Create order information
-        $order = new net\authorize\api\contract\v1\OrderType();
-        $order->setInvoiceNumber(count($invoice_amounts) == 1 ? $invoice_amounts[0] : time());
-        $order->setDescription($this->getChargeDescription($invoice_amounts));
-
-        // Create a TransactionRequestType object and add the previous objects to it
-        $transaction_request = new net\authorize\api\contract\v1\TransactionRequestType();
-        $transaction_request->setTransactionType("authCaptureTransaction");
-        $transaction_request->setAmount($amount);
-        $transaction_request->setOrder($order);
-        $transaction_request->setPayment($payment_type);
-        $transaction_request->setBillTo($customer_address);
-        $transaction_request->setCustomer($customer_data);
-
-        // Assemble the complete transaction request
-        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
-        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
-        $request->setRefId($profile_reference);
-        $request->setTransactionRequest($transaction_request);
-
-        // Create the controller and get the response
-        try {
-            $controller = new net\authorize\api\controller\CreateTransactionController($request);
-            $response = $controller->executeWithApiResponse(
-                $this->meta['sandbox'] == 'true'
-                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
-                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION);
-        } catch (Throwable $e) {
-            $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
-
-            return;
-        }
-
-        return [
-            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'declined',
-            'reference_id' => str_replace('X', '', $response->getTransactionResponse()->getAccountNumber()),
-            'transaction_id' => $response->getTransactionResponse()->getTransId(),
-            'message' => $response->getMessages()->getMessage() ?? null
-        ];*/
-
-        //$this->Input->setErrors($this->getCommonError('unsupported'));
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function updateCc(array $card_info, array $contact, $client_reference_id, $account_reference_id)
-    {
-        return $this->storeCc($card_info, $contact, $client_reference_id);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    public function removeCc($client_reference_id, $account_reference_id)
-    {
-        $this->Input->setErrors($this->getCommonError('unsupported'));
-    }
-
-    /**
-     * {@inheritdoc}
-     */
     public function processStoredCc($client_reference_id, $account_reference_id, $amount, array $invoice_amounts = null)
     {
+        #
+        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
+        #
         $this->Input->setErrors($this->getCommonError('unsupported'));
     }
 
     /**
-     * {@inheritdoc}
+     * Authorizees a credit card stored off site
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @param float $amount The amount to authorize
+     * @param array $invoice_amounts An array of invoices, each containing:
+     *  - id The ID of the invoice being processed
+     *  - amount The amount being processed for this invoice (which is included in $amount)
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard
+     *      message for this transaction status (optional)
      */
     public function authorizeStoredCc(
         $client_reference_id,
@@ -654,11 +920,29 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $amount,
         array $invoice_amounts = null
     ) {
+        #
+        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
+        #
         $this->Input->setErrors($this->getCommonError('unsupported'));
     }
 
     /**
-     * {@inheritdoc}
+     * Charge a previously authorized credit card stored off site
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @param string $transaction_reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The ID of the previously authorized transaction
+     * @param float $amount The amount to capture
+     * @param array $invoice_amounts An array of invoices, each containing:
+     *  - id The ID of the invoice being processed
+     *  - amount The amount being processed for this invoice (which is included in $amount)
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard
+     *      message for this transaction status (optional)
      */
     public function captureStoredCc(
         $client_reference_id,
@@ -668,11 +952,25 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $amount,
         array $invoice_amounts = null
     ) {
+        #
+        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
+        #
         $this->Input->setErrors($this->getCommonError('unsupported'));
     }
 
     /**
-     * {@inheritdoc}
+     * Void an off site credit card charge
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @param string $transaction_reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The ID of the previously authorized transaction
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard message for
+     *      this transaction status (optional)
      */
     public function voidStoredCc(
         $client_reference_id,
@@ -680,11 +978,26 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_reference_id,
         $transaction_id
     ) {
+        #
+        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
+        #
         return $this->voidCc($transaction_reference_id, $transaction_id);
     }
 
     /**
-     * {@inheritdoc}
+     * Refund an off site credit card charge
+     *
+     * @param string $client_reference_id The reference ID for the client on the remote gateway
+     * @param string $account_reference_id The reference ID for the stored account on the remote gateway to update
+     * @param string $transaction_reference_id The reference ID for the previously authorized transaction
+     * @param string $transaction_id The ID of the previously authorized transaction
+     * @param float $amount The amount to refund
+     * @return array An array of transaction data including:
+     *  - status The status of the transaction (approved, declined, void, pending, reconciled, refunded, returned)
+     *  - reference_id The reference ID for gateway-only use with this transaction (optional)
+     *  - transaction_id The ID returned by the remote gateway to identify this transaction
+     *  - message The message to be displayed in the interface in addition to the standard message
+     *      for this transaction status (optional)
      */
     public function refundStoredCc(
         $client_reference_id,
@@ -693,31 +1006,21 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_id,
         $amount
     ) {
+        #
+        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
+        #
         return $this->refundCc($transaction_reference_id, $transaction_id);
     }
 
     /**
      * Loads the given API if not already loaded
      *
-     * @param string $type The type of API to load (AIM or CIM)
+     * @param string $type The type of API to load (CIM or ACCEPT)
      */
     private function loadApi($type)
     {
         $type = strtolower($type);
         switch ($type) {
-            case 'aim':
-                if (!isset($this->AuthorizeNetAim)) {
-                    Loader::load(dirname(__FILE__) . DS . 'apis' . DS . 'authorize_net_aim.php');
-                    $this->AuthorizeNetAim = new AuthorizeNetAim(
-                        $this->meta['login_id'],
-                        $this->meta['transaction_key'],
-                        $this->meta['sandbox'] == 'true',
-                        $this->meta['sandbox'] == 'true'
-                    );
-                }
-
-                $this->AuthorizeNetAim->setCurrency($this->currency);
-                break;
             case 'cim':
                 if (!isset($this->AuthorizeNetCim)) {
                     Loader::load(dirname(__FILE__) . DS . 'apis' . DS . 'authorize_net_cim.php');
@@ -740,41 +1043,6 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
 
                 break;
         }
-    }
-
-    /**
-     * Log the request
-     *
-     * @param string $url The URL of the API request to log
-     * @param array The input parameters sent to the gateway
-     * @param array The response from the gateway
-     */
-    private function logRequest($url, array $params, array $response)
-    {
-        // Define all fields to mask when logging
-        $mask_fields = [
-            'number', // CC number
-            'exp_month',
-            'exp_year',
-            'cvc'
-        ];
-
-        // Determine success or failure for the response
-        $success = false;
-        if (!(($errors = $this->Input->errors()) || isset($response['error']))) {
-            $success = true;
-        }
-
-        // Log data sent to the gateway
-        $this->log(
-            $url,
-            serialize($params),
-            'input',
-            (isset($params['error']) ? false : true)
-        );
-
-        // Log response from the gateway
-        $this->log($url, serialize($this->maskDataRecursive($response, $mask_fields)), 'output', $success);
     }
 
     /**
@@ -823,12 +1091,43 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             return Language::_('AuthorizeNetAcceptjs.charge_description_default', true);
         }
 
-        // Truncate the description to a max of 1000 characters since that is Stripe's limit for the description field
+        // Truncate the description to a max of 1000 characters since that is the limit for the description field
         $description = Language::_('AuthorizeNetAcceptjs.charge_description', true, implode(', ', $id_codes));
         if (strlen($description) > 1000) {
             $description = $string->truncate($description, ['length' => 997]) . '...';
         }
 
         return $description;
+    }
+
+    /**
+     * Retrieves the invoice number for CC charges
+     *
+     * @param array|null $invoice_amounts An array of invoice amounts (optional)
+     * @return string The invoice charge number
+     */
+    private function getChargeInvoice(array $invoice_amounts = null)
+    {
+        // No invoice amounts, set a default description
+        if (empty($invoice_amounts)) {
+            return time();
+        }
+
+        Loader::loadModels($this, ['Invoices']);
+        Loader::loadComponents($this, ['DataStructure']);
+
+        // Create a list of invoices being paid
+        $id_codes = [];
+        foreach ($invoice_amounts as $invoice_amount) {
+            if (($invoice = $this->Invoices->get($invoice_amount['invoice_id']))) {
+                $id_codes[] = $invoice->id_code;
+            }
+        }
+
+        if (count($id_codes) == 1) {
+            return $id_codes[0];
+        }
+
+        return time();
     }
 }
