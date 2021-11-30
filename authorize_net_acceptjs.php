@@ -944,9 +944,6 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $amount,
         array $invoice_amounts = null
     ) {
-        #
-        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
-        #
         $this->Input->setErrors($this->getCommonError('unsupported'));
     }
 
@@ -976,10 +973,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $amount,
         array $invoice_amounts = null
     ) {
-        #
-        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
-        #
-        $this->Input->setErrors($this->getCommonError('unsupported'));
+        $this->captureCc($transaction_reference_id, $transaction_id, $amount, $invoice_amounts);
     }
 
     /**
@@ -1002,9 +996,6 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_reference_id,
         $transaction_id
     ) {
-        #
-        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
-        #
         return $this->voidCc($transaction_reference_id, $transaction_id);
     }
 
@@ -1030,10 +1021,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_id,
         $amount
     ) {
-        #
-        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
-        #
-        return $this->refundCc($transaction_reference_id, $transaction_id);
+        return $this->refundCc($transaction_reference_id, $transaction_id, $amount);
     }
 
     /**

@@ -1,99 +1,42 @@
-<div id="authorizenet-cc-form">
-    <?php
-    if (($meta['sandbox'] ?? 'false') == 'true') {
+    <div id="authorizenet-cc-form">
+        <?php
+        if (($meta['sandbox'] ?? 'false') == 'true') {
+            ?>
+            <script type="text/javascript" src="https://jstest.authorize.net/v1/Accept.js" charset="utf-8"></script>
+        <?php
+        } else {
         ?>
-        <script type="text/javascript" src="https://jstest.authorize.net/v1/Accept.js" charset="utf-8"></script>
-    <?php
-    } else {
-    ?>
-        <script type="text/javascript" src="https://js.authorize.net/v1/Accept.js" charset="utf-8"></script>
-        <?php
-    }
-    ?>
+            <script type="text/javascript" src="https://js.authorize.net/v1/Accept.js" charset="utf-8"></script>
+            <?php
+        }
+        ?>
 
-    <div class="form-group">
+        <div class="form-group">
+            <?php
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.field_number', true), 'cardNumber');
+            $this->Form->fieldText('cardNumber', null, ['id' => 'cardNumber', 'maxlength' => '16', 'placeholder' => $this->_('AuthorizeNetAcceptjs.field_number', true)]);
+            ?>
+        </div>
+        <div class="form-group">
+            <?php $this->Form->label($this->_('AuthorizeNetAcceptjs.field_security', true), 'cardCode');?>
+            <?php $this->Form->fieldText('cardCode', null, ['id' => 'cardCode', 'maxlength' => '4', 'placeholder' => $this->_('AuthorizeNetAcceptjs.field_security', true)]);?>
+        </div>
+        <div class="form-group">
+            <?php
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expiration');
+            $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth']);
+            $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
+            ?>
+        </div>
         <?php
-        $this->Form->label($this->_('AuthorizeNetAcceptjs.field_number', true), 'cardNumber');
-        $this->Form->fieldText('cardNumber', null, ['id' => 'cardNumber', 'maxlength' => '16', 'placeholder' => $this->_('AuthorizeNetAcceptjs.field_number', true)]);
+        $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
+        $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
+        $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
+        $this->Form->fieldHidden('client_reference_id', '', ['id' => 'client_reference_id']);
+        $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
+        $this->Form->fieldHidden('expiration', '', ['id' => 'expiration']);
         ?>
     </div>
-    <div class="form-group">
-        <?php $this->Form->label($this->_('AuthorizeNetAcceptjs.field_security', true), 'cardCode');?>
-        <?php $this->Form->fieldText('cardCode', null, ['id' => 'cardCode', 'maxlength' => '4', 'placeholder' => $this->_('AuthorizeNetAcceptjs.field_security', true)]);?>
-    </div>
-    <div class="form-group">
-        <?php
-        $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expiration');
-        $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth']);
-        $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
-        ?>
-    </div>
-    <?php
-    $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
-    $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
-    $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
-    $this->Form->fieldHidden('client_reference_id', '', ['id' => 'client_reference_id']);
-    $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
-    $this->Form->fieldHidden('expiration', '', ['id' => 'expiration']);
-    ?>
-</div>
-<style>
-    #authorizenet-cc-form {
-        width: 260px;
-        border: 1px solid #eeeeee;
-        padding: 15px;
-        border-radius: 5px;
-        background: #fafafa;
-    }
-
-    #authorizenet-cc-form .form-group {
-        margin-bottom: 0px;
-    }
-
-    #authorizenet-cc-form .form-group input {
-        margin-bottom: 15px;
-    }
-
-    #authorizenet-cc-form .form-group select {
-        margin-bottom: 5px;
-    }
-
-    #authorizenet-cc-form .form-group label {
-        display: block;
-    }
-
-    #authorizenet-cc-form input, #authorizenet-cc-form select {
-        height: 42px;
-        width: calc(100% - 1px);
-        font-family: Inter, sans-serif;
-        font-size: 14px;
-        font-weight: 400;
-        line-height: 1.5;
-        color: #495057;
-        border: 1px solid #ced4da;
-        padding: 10px 15px;
-        border-radius: 5px;
-        outline: none;
-        -moz-appearance: none;
-        -webkit-appearance: none;
-        box-sizing: border-box;
-        transition: border-color .25s ease-in-out, box-shadow .25s ease-in-out;
-    }
-
-    #authorizenet-cc-form input:focus, #authorizenet-cc-form select:focus {
-        border-color: #337AB7;
-    }
-
-    #authorizenet-cc-form select {
-        display: inline-block;
-        width: calc(50% - 2px) !important;
-        padding-right: 20px;
-        border-radius: 5px;
-        background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAh0lEQVQ4T93TMQrCUAzG8V9x8QziiYSuXdzFC7h4AcELOPQAdXYovZCHEATlgQV5GFTe1ozJlz/kS1IpjKqw3wQBVyy++JI0y1GTe7DCBbMAckeNIQKk/BanALBB+16LtnDELoMcsM/BESDlz2heDR3WePwKSLo5eoxz3z6NNcFD+vu3ij14Aqz/DxGbKB7CAAAAAElFTkSuQmCC');
-        background-repeat: no-repeat;
-        background-position: calc(100% - 5px) 50%;
-    }
-</style>
     <script>
         $(document).ready(function() {
             $(this).blestaSetHeadTag("link", {media:"screen", type:"text/css", rel:"stylesheet", href: "<?php echo $this->Html->safe($this->view_dir . 'css/styles.css');?>"});
