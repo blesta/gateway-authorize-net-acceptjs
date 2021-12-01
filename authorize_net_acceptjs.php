@@ -329,6 +329,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             $response->getMessages()->getResultCode() == 'Ok'
         );
 
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['auth_capture' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
+
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'accepted' : 'declined',
             'reference_id' => substr(md5($card_info['reference_id'] ?? ''), 0 ,18),
@@ -450,6 +456,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             $response->getMessages()->getResultCode() == 'Ok'
         );
 
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['authorize' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
+
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'pending' : 'declined',
             'reference_id' => substr(md5($card_info['reference_id'] ?? ''), 0 ,18),
@@ -523,6 +535,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             $response->getMessages()->getResultCode() == 'Ok'
         );
 
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['capture' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
+
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'declined',
             'reference_id' => $reference_id,
@@ -591,6 +609,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
+
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['void' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
 
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'void' : 'error',
@@ -676,6 +700,15 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
+
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => [
+                'refund' => $response->getTransactionResponse()->getErrors()[0]->getErrorText()
+                    ?? $response->getMessages()->getMessage()[0]->getText()
+            ]]);
+
+            return;
+        }
 
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'refunded' : 'error',
@@ -803,7 +836,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             );
         } catch (Throwable $e) {
             $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
-            $this->log('/CreateCustomerProfileRequest', serialize(['refund' => $e->getMessage()]), 'output');
+            $this->log('/CreateCustomerProfileRequest', serialize(['authorize' => $e->getMessage()]), 'output');
 
             return;
         }
@@ -815,6 +848,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
+
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['authorize' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
 
         return [
             'client_reference_id' => $response->getCustomerProfileId(),
@@ -965,6 +1004,12 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
+
+        if ($response->getMessages()->getResultCode() !== 'Ok') {
+            $this->Input->setErrors(['authnet_error' => ['auth_capture' => $response->getMessages()->getMessage()[0]->getText()]]);
+
+            return;
+        }
 
         return [
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'error',
