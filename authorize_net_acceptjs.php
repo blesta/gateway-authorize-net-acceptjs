@@ -315,8 +315,8 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
                     : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
             );
         } catch (Throwable $e) {
-            $this->Input->setErrors(['authnet_error' => ['authorize' => $e->getMessage()]]);
-            $this->log('/authCaptureTransaction', serialize(['authorize' => $e->getMessage()]), 'output');
+            $this->Input->setErrors(['authnet_error' => ['auth_capture' => $e->getMessage()]]);
+            $this->log('/authCaptureTransaction', serialize(['auth_capture' => $e->getMessage()]), 'output');
 
             return;
         }
@@ -445,7 +445,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/authOnlyTransaction',
-            serialize($response),
+            serialize($response->getTransactionResponse() ?? $response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -518,7 +518,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/priorAuthCaptureTransaction',
-            serialize($response),
+            serialize($response->getTransactionResponse() ?? $response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -587,7 +587,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/voidTransaction',
-            serialize($response),
+            serialize($response->getTransactionResponse() ?? $response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -672,7 +672,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         // Log response
         $this->log(
             '/refundTransaction',
-            serialize($response),
+            serialize($response->getTransactionResponse() ?? $response),
             'output',
             $response->getMessages()->getResultCode() == 'Ok'
         );
@@ -681,7 +681,8 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'refunded' : 'error',
             'reference_id' => $reference_id,
             'transaction_id' => $transaction_id,
-            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+            'message' => $response->getTransactionResponse()->getErrors()[0]->getErrorText()
+                ?? $response->getMessages()->getMessage()[0]->getText()
         ];
     }
 
@@ -916,10 +917,61 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      */
     public function processStoredCc($client_reference_id, $account_reference_id, $amount, array $invoice_amounts = null)
     {
-        #
-        # TODO: See https://developer.authorize.net/api/reference/index.html#payment-transactions-charge-a-customer-profile
-        #
-        $this->Input->setErrors($this->getCommonError('unsupported'));
+        // Load api
+        $this->loadApi('ACCEPT');
+
+        // Log input
+        $masked_params = compact('client_reference_id', 'account_reference_id', 'amount', 'invoice_amounts');
+        $masked_params['client_reference_id'] = '****';
+        $this->log('/authCaptureTransaction', serialize($masked_params), 'input', true);
+
+        $reference_id = substr(md5(time()), 0 ,18);
+
+        $payment = new net\authorize\api\contract\v1\PaymentProfileType();
+        $payment->setPaymentProfileId($account_reference_id);
+
+        $profile = new net\authorize\api\contract\v1\CustomerProfilePaymentType();
+        $profile->setCustomerProfileId($client_reference_id);
+        $profile->setPaymentProfile($payment);
+
+        $transaction = new net\authorize\api\contract\v1\TransactionRequestType();
+        $transaction->setTransactionType('authCaptureTransaction');
+        $transaction->setAmount($amount);
+        $transaction->setProfile($profile);
+
+        $request = new net\authorize\api\contract\v1\CreateTransactionRequest();
+        $request->setMerchantAuthentication($this->AuthorizeNetAccept);
+        $request->setRefId($reference_id);
+        $request->setTransactionRequest($transaction);
+
+        try {
+            $controller = new net\authorize\api\controller\CreateTransactionController($request);
+            $response = $controller->executeWithApiResponse(
+                $this->meta['sandbox'] == 'true'
+                    ? \net\authorize\api\constants\ANetEnvironment::SANDBOX
+                    : \net\authorize\api\constants\ANetEnvironment::PRODUCTION
+            );
+        } catch (Throwable $e) {
+            $this->Input->setErrors(['authnet_error' => ['auth_capture' => $e->getMessage()]]);
+            $this->log('/authCaptureTransaction', serialize(['auth_capture' => $e->getMessage()]), 'output');
+
+            return;
+        }
+
+        // Log response
+        $this->log(
+            '/authCaptureTransaction',
+            serialize($response->getTransactionResponse() ?? $response),
+            'output',
+            $response->getMessages()->getResultCode() == 'Ok'
+        );
+
+        return [
+            'status' => $response->getMessages()->getResultCode() == 'Ok' ? 'approved' : 'error',
+            'reference_id' => $reference_id,
+            'transaction_id' => $response->getTransactionResponse()->getTransId() ?? '',
+            'message' => $response->getMessages()->getMessage()[0]->getText() ?? null
+        ];
     }
 
     /**
@@ -973,7 +1025,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $amount,
         array $invoice_amounts = null
     ) {
-        $this->captureCc($transaction_reference_id, $transaction_id, $amount, $invoice_amounts);
+        $this->Input->setErrors($this->getCommonError('unsupported')); return;
     }
 
     /**
@@ -996,7 +1048,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_reference_id,
         $transaction_id
     ) {
-        return $this->voidCc($transaction_reference_id, $transaction_id);
+        $this->Input->setErrors($this->getCommonError('unsupported')); return;
     }
 
     /**
