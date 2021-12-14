@@ -2,20 +2,20 @@
 	<ul>
 		<li>
 			<?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.login_id', true));
-            $this->Form->fieldText('login_id', ($meta['login_id'] ?? null));
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.login_id', true), 'login_id');
+            $this->Form->fieldText('login_id', ($meta['login_id'] ?? null), ['id' => 'login_id']);
             ?>
 		</li>
         <li>
             <?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.transaction_key', true));
-            $this->Form->fieldText('transaction_key', ($meta['transaction_key'] ?? null));
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.transaction_key', true), 'transaction_key');
+            $this->Form->fieldText('transaction_key', ($meta['transaction_key'] ?? null), ['id' => 'transaction_key']);
             ?>
         </li>
         <li>
             <?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.validation_mode', true));
-            $this->Form->fieldSelect('validation_mode', $validation_modes ?? [], ($meta['validation_mode'] ?? null));
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.validation_mode', true), 'validation_mode');
+            $this->Form->fieldSelect('validation_mode', $validation_modes ?? [], ($meta['validation_mode'] ?? null), ['id' => 'validation_mode']);
             ?>
             <span class="tooltip"><?php $this->_('AppController.tooltip.text');?><div><?php $this->_('AuthorizeNetAcceptjs.validation_note');?></div></span>
         </li>

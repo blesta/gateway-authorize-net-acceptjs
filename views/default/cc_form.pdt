@@ -23,7 +23,7 @@
         </div>
         <div class="form-group">
             <?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expiration');
+            $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expMonth');
             $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth']);
             $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
             ?>

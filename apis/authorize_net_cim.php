@@ -377,11 +377,11 @@ class AuthorizeNetCim
         ];
 
         // Only set 1 of either 'merchantCustomerId', 'email', or 'description'
-        if ((isset($customer_info['customer_id']) ? $customer_info['customer_id'] : null) != '') {
+        if (($customer_info['customer_id'] ?? null) != '') {
             $data['profile']['merchantCustomerId'] = $customer_info['customer_id'];
-        } elseif ((isset($customer_info['email']) ? $customer_info['email'] : null) != '') {
+        } elseif (($customer_info['email'] ?? null) != '') {
             $data['profile']['email'] = $customer_info['email'];
-        } elseif ((isset($customer_info['description']) ? $customer_info['description'] : null) != '') {
+        } elseif (($customer_info['description'] ?? null) != '') {
             $data['profile']['description'] = $customer_info['description'];
         }
 
@@ -391,7 +391,7 @@ class AuthorizeNetCim
             strtolower($response_obj->messages->resultCode) == 'ok'
         ) {
             return (string)$response_obj->customerProfileId;
-        } elseif ((isset($response_obj->messages->message->code) ? $response_obj->messages->message->code : null) == 'E00039') {
+        } elseif (($response_obj->messages->message->code ?? null) == 'E00039') {
             // If a duplicate ID error was encountered, parse that ID and update the existing profile
             $matches = [];
             preg_match('/ID\s([0-9]+)\s/', $response_obj->messages->message->text, $matches);
@@ -405,6 +405,7 @@ class AuthorizeNetCim
                 }
             }
         }
+
         return null;
     }
 
@@ -442,10 +443,9 @@ class AuthorizeNetCim
         $payment = [];
         switch ($type) {
             case 'ach':
-
                 // Determine ACH type
                 $account_type = '';
-                switch ((isset($account_info['type']) ? $account_info['type'] : null)) {
+                switch (($account_info['type'] ?? null)) {
                     default:
                     case 'checking':
                         $account_type = 'checking';
@@ -461,10 +461,10 @@ class AuthorizeNetCim
                 $payment = [
                     'bankAccount' => [
                         'accountType' => $account_type,
-                        'routingNumber' => (isset($account_info['routing_number']) ? $account_info['routing_number'] : null),
-                        'accountNumber' => (isset($account_info['account_number']) ? $account_info['account_number'] : null),
-                        'nameOnAccount' => (isset($account_info['first_name']) ? $account_info['first_name'] : null)
-                            . ' ' . (isset($account_info['last_name']) ? $account_info['last_name'] : null),
+                        'routingNumber' => ($account_info['routing_number'] ?? null),
+                        'accountNumber' => ($account_info['account_number'] ?? null),
+                        'nameOnAccount' => ($account_info['first_name'] ?? null)
+                            . ' ' . ($account_info['last_name'] ?? null),
                         'echeckType' => 'WEB'
                     ]
                 ];
@@ -472,15 +472,15 @@ class AuthorizeNetCim
             case 'cc':
                 $payment = [
                     'creditCard' => [
-                        'cardNumber' => (isset($account_info['card_number']) ? $account_info['card_number'] : null),
+                        'cardNumber' => ($account_info['card_number'] ?? null),
                         // From YYYYMM to YYYY-MM
-                        'expirationDate' => substr((isset($account_info['card_exp']) ? $account_info['card_exp'] : null), 0, 4)
-                            . '-' . substr((isset($account_info['card_exp']) ? $account_info['card_exp'] : null), -2)
+                        'expirationDate' => substr(($account_info['card_exp'] ?? null), 0, 4)
+                            . '-' . substr(($account_info['card_exp'] ?? null), -2)
                     ]
                 ];
 
                 // Only set card security code if given
-                if ((isset($account_info['card_security_code']) ? $account_info['card_security_code'] : null)) {
+                if (($account_info['card_security_code'] ?? null)) {
                     $payment['creditCard']['cardCode'] = $account_info['card_security_code'];
                 }
                 break;
@@ -490,13 +490,13 @@ class AuthorizeNetCim
             'customerProfileId' => $profile_id,
             'paymentProfile' => [
                 'billTo' => [
-                    'firstName' => (isset($account_info['first_name']) ? $account_info['first_name'] : null),
-                    'lastName' => (isset($account_info['last_name']) ? $account_info['last_name'] : null),
-                    'address' => (isset($account_info['address1']) ? $account_info['address1'] : null),
-                    'city' => (isset($account_info['city']) ? $account_info['city'] : null),
-                    'state' => (isset($account_info['state']['code']) ? $account_info['state']['code'] : null),
-                    'zip' => (isset($account_info['zip']) ? $account_info['zip'] : null),
-                    'country' => (isset($account_info['country']['alpha2']) ? $account_info['country']['alpha2'] : null)
+                    'firstName' => ($account_info['first_name'] ?? null),
+                    'lastName' => ($account_info['last_name'] ?? null),
+                    'address' => ($account_info['address1'] ?? null),
+                    'city' => ($account_info['city'] ?? null),
+                    'state' => ($account_info['state']['code'] ?? null),
+                    'zip' => ($account_info['zip'] ?? null),
+                    'country' => ($account_info['country']['alpha2'] ?? null)
                 ],
                 'payment' => $payment
             ]
@@ -512,7 +512,7 @@ class AuthorizeNetCim
             strtolower($response_obj->messages->resultCode) == 'ok'
         ) {
             return (string)$response_obj->customerPaymentProfileId;
-        } elseif ((isset($response_obj->messages->message->code) ? $response_obj->messages->message->code : null) == 'E00039'
+        } elseif (($response_obj->messages->message->code ?? null) == 'E00039'
             && isset($response_obj->customerProfileId)
             && isset($response_obj->customerPaymentProfileId)
             && !in_array($response_obj->customerPaymentProfileId, $blacklisted_payment_ids)
@@ -531,6 +531,7 @@ class AuthorizeNetCim
                 return (string)$response_obj->customerPaymentProfileId;
             }
         }
+
         return null;
     }
 
@@ -583,7 +584,7 @@ class AuthorizeNetCim
         // to 20 chars, we pretty much can only send one ID)
         if ($invoice_amounts) {
             $data['transaction'][$trans_type]['order']['invoiceNumber']
-                = (isset($invoice_amounts[0]['invoice_id']) ? $invoice_amounts[0]['invoice_id'] : null);
+                = ($invoice_amounts[0]['invoice_id'] ?? null);
         }
 
         // Add recurringBilling flag to the auth/capture transactions that support it
@@ -596,6 +597,7 @@ class AuthorizeNetCim
         if (isset($response_obj->directResponse)) {
             return $this->parseTransResponse($response_obj->directResponse);
         }
+
         return null;
     }
 
@@ -616,11 +618,11 @@ class AuthorizeNetCim
         ];
 
         // Only set 1 of either 'merchantCustomerId', 'email', or 'description'
-        if ((isset($customer_info['customer_id']) ? $customer_info['customer_id'] : null) != '') {
+        if (($customer_info['customer_id'] ?? null) != '') {
             $data['profile']['merchantCustomerId'] = $customer_info['customer_id'];
-        } elseif ((isset($customer_info['email']) ? $customer_info['email'] : null) != '') {
+        } elseif (($customer_info['email'] ?? null) != '') {
             $data['profile']['email'] = $customer_info['email'];
-        } elseif ((isset($customer_info['description']) ? $customer_info['description'] : null) != '') {
+        } elseif (($customer_info['description'] ?? null) != '') {
             $data['profile']['description'] = $customer_info['description'];
         }
 
@@ -633,6 +635,7 @@ class AuthorizeNetCim
         ) {
             return true;
         }
+
         return false;
     }
 
@@ -684,10 +687,9 @@ class AuthorizeNetCim
         if ($account_info['account_changed']) {
             switch ($type) {
                 case 'ach':
-
                     // Determine ACH type
                     $account_type = '';
-                    switch ((isset($account_info['type']) ? $account_info['type'] : null)) {
+                    switch (($account_info['type'] ?? null)) {
                         default:
                         case 'checking':
                             $account_type = 'checking';
@@ -703,10 +705,10 @@ class AuthorizeNetCim
                     $payment = [
                         'bankAccount' => [
                             'accountType' => $account_type,
-                            'routingNumber' => (isset($account_info['routing_number']) ? $account_info['routing_number'] : null),
-                            'accountNumber' => (isset($account_info['account_number']) ? $account_info['account_number'] : null),
-                            'nameOnAccount' => (isset($account_info['first_name']) ? $account_info['first_name'] : null)
-                                . ' ' . (isset($account_info['last_name']) ? $account_info['last_name'] : null),
+                            'routingNumber' => ($account_info['routing_number'] ?? null),
+                            'accountNumber' => ($account_info['account_number'] ?? null),
+                            'nameOnAccount' => ($account_info['first_name'] ?? null)
+                                . ' ' . ($account_info['last_name'] ?? null),
                             'echeckType' => 'WEB'
                         ]
                     ];
@@ -714,15 +716,15 @@ class AuthorizeNetCim
                 case 'cc':
                     $payment = [
                         'creditCard' => [
-                            'cardNumber' => (isset($account_info['card_number']) ? $account_info['card_number'] : null),
+                            'cardNumber' => ($account_info['card_number'] ?? null),
                             // From YYYYMM to YYYY-MM
-                            'expirationDate' => substr((isset($account_info['card_exp']) ? $account_info['card_exp'] : null), 0, 4)
-                                . '-' . substr((isset($account_info['card_exp']) ? $account_info['card_exp'] : null), -2)
+                            'expirationDate' => substr(($account_info['card_exp'] ?? null), 0, 4)
+                                . '-' . substr(($account_info['card_exp'] ?? null), -2)
                         ]
                     ];
 
                     // Only set card security code if given
-                    if ((isset($account_info['card_security_code']) ? $account_info['card_security_code'] : null)) {
+                    if (($account_info['card_security_code'] ?? null)) {
                         $payment['creditCard']['cardCode'] = $account_info['card_security_code'];
                     }
                     break;
@@ -733,13 +735,13 @@ class AuthorizeNetCim
             'customerProfileId' => $profile_id,
             'paymentProfile' => [
                 'billTo' => [
-                    'firstName' => (isset($account_info['first_name']) ? $account_info['first_name'] : null),
-                    'lastName' => (isset($account_info['last_name']) ? $account_info['last_name'] : null),
-                    'address' => (isset($account_info['address1']) ? $account_info['address1'] : null),
-                    'city' => (isset($account_info['city']) ? $account_info['city'] : null),
-                    'state' => (isset($account_info['state']['code']) ? $account_info['state']['code'] : null),
-                    'zip' => (isset($account_info['zip']) ? $account_info['zip'] : null),
-                    'country' => (isset($account_info['country']['alpha2']) ? $account_info['country']['alpha2'] : null)
+                    'firstName' => ($account_info['first_name'] ?? null),
+                    'lastName' => ($account_info['last_name'] ?? null),
+                    'address' => ($account_info['address1'] ?? null),
+                    'city' => ($account_info['city'] ?? null),
+                    'state' => ($account_info['state']['code'] ?? null),
+                    'zip' => ($account_info['zip'] ?? null),
+                    'country' => ($account_info['country']['alpha2'] ?? null)
                 ],
                 'payment' => array_merge($payment_profile, $payment),
                 'customerPaymentProfileId' => $payment_profile_id
@@ -752,11 +754,10 @@ class AuthorizeNetCim
 
         $response_obj = $this->submit($data, 'updateCustomerPaymentProfileRequest');
 
-        if (isset($response_obj->messages->resultCode) &&
-            strtolower($response_obj->messages->resultCode) == 'ok'
-        ) {
+        if (isset($response_obj->messages->resultCode) && strtolower($response_obj->messages->resultCode) == 'ok') {
             return true;
         }
+
         return false;
     }
 
