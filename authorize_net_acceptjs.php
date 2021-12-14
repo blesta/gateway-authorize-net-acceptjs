@@ -1081,7 +1081,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_reference_id,
         $transaction_id
     ) {
-        $this->Input->setErrors($this->getCommonError('unsupported')); return;
+        return $this->voidCc($transaction_reference_id, $transaction_id);
     }
 
     /**
