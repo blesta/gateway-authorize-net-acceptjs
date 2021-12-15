@@ -201,19 +201,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
      */
     public function buildPaymentConfirmation($reference_id, $transaction_id, $amount)
     {
-        // Load the view into this object, so helpers can be automatically added to the view
-        $this->view = $this->makeView(
-            'payment_confirmation',
-            'default',
-            str_replace(ROOTWEBDIR, '', dirname(__FILE__) . DS)
-        );
-
-        // Load the helpers required for this view
-        Loader::loadHelpers($this, ['Form', 'Html']);
-
-        $this->view->set('meta', $this->meta);
-
-        return $this->view->fetch();
+        return '';
     }
 
     /**
@@ -1093,7 +1081,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         $transaction_reference_id,
         $transaction_id
     ) {
-        $this->Input->setErrors($this->getCommonError('unsupported')); return;
+        return $this->voidCc($transaction_reference_id, $transaction_id);
     }
 
     /**
