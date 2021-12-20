@@ -97,7 +97,11 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
                     'message' => Language::_('AuthorizeNetAcceptjs.!error.login_id.empty', true)
                 ],
                 'valid' => [
-                    'rule' => [[$this, 'validateConnection']],
+                    'rule' => [
+                        [$this, 'validateConnection'],
+                        $meta['transaction_key'],
+                        $meta['sandbox']
+                    ],
                     'message' => Language::_('AuthorizeNetAcceptjs.!error.login_id.valid', true)
                 ]
             ],
@@ -116,6 +120,9 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         }
 
         $this->Input->setRules($rules);
+
+        // Validate the given meta data to ensure it meets the requirements
+        $this->Input->validates($meta);
 
         return $meta;
     }
@@ -1142,6 +1149,28 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
 
                 break;
         }
+    }
+
+    /**
+     * Validates the connection with Authorize.net
+     *
+     * @param string $login_id The Authorize.net login id
+     * @param string $transaction_key The Authorize.net transaction key
+     * @param string $sandbox Whether to use the sandbox endpoint, 'true' to use the sandbox endpoint
+     */
+    public function validateConnection($login_id, $transaction_key, $sandbox = 'false')
+    {
+        Loader::load(dirname(__FILE__) . DS . 'apis' . DS . 'authorize_net_cim.php');
+
+        $AuthorizeNetCim = new AuthorizeNetCim(
+            $login_id,
+            $transaction_key,
+            $sandbox == 'true',
+            'liveMode'
+        );
+        $merchant = $AuthorizeNetCim->getMerchantDetailsRequest();
+
+        return !empty($merchant['publicClientKey']);
     }
 
     /**
