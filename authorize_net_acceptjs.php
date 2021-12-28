@@ -61,13 +61,6 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         Loader::loadHelpers($this, ['Form', 'Html']);
         Loader::loadModels($this, ['GatewayManager']);
 
-        // Set the validation modes for CIM
-        $this->view->set('validation_modes', [
-            'none' => Language::_('AuthorizeNetAcceptjs.validation_modes_none', true),
-            'testMode' => Language::_('AuthorizeNetAcceptjs.validation_modes_test', true),
-            'liveMode' => Language::_('AuthorizeNetAcceptjs.validation_modes_live', true)
-        ]);
-
         $this->view->set('meta', $meta);
 
         return $this->view->fetch();
@@ -1133,8 +1126,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
                     $this->AuthorizeNetCim = new AuthorizeNetCim(
                         $this->meta['login_id'],
                         $this->meta['transaction_key'],
-                        $this->meta['sandbox'] == 'true',
-                        $this->meta['validation_mode']
+                        $this->meta['sandbox'] == 'true'
                     );
                 }
 
@@ -1219,10 +1211,10 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
             return Language::_('AuthorizeNetAcceptjs.charge_description_default', true);
         }
 
-        // Truncate the description to a max of 1000 characters since that is the limit for the description field
-        $description = Language::_('AuthorizeNetAcceptjs.charge_description', true, implode(', ', $id_codes));
-        if (strlen($description) > 1000) {
-            $description = $string->truncate($description, ['length' => 997]) . '...';
+        // Truncate the description to a max of 20 characters
+        $description = Language::_('AuthorizeNetAcceptjs.charge_description', true, implode(' ', $id_codes));
+        if (strlen($description) > 20) {
+            $description = $string->truncate($description, ['length' => 20]) . '...';
         }
 
         return $description;
@@ -1253,7 +1245,7 @@ class AuthorizeNetAcceptjs extends MerchantGateway implements MerchantCc, Mercha
         }
 
         if (count($id_codes) == 1) {
-            return $id_codes[0];
+            return preg_replace('~\D~', '', trim($id_codes[0] ?? time()));
         }
 
         return time();

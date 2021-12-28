@@ -14,13 +14,6 @@
         </li>
         <li>
             <?php
-            $this->Form->label($this->_('AuthorizeNetAcceptjs.validation_mode', true), 'validation_mode');
-            $this->Form->fieldSelect('validation_mode', $validation_modes ?? [], ($meta['validation_mode'] ?? null), ['id' => 'validation_mode']);
-            ?>
-            <span class="tooltip"><?php $this->_('AppController.tooltip.text');?><div><?php $this->_('AuthorizeNetAcceptjs.validation_note');?></div></span>
-        </li>
-        <li>
-            <?php
             $this->Form->fieldCheckbox('sandbox', 'true', (($meta['sandbox'] ?? 'false') == 'true'), ['id' => 'sandbox']);
             $this->Form->label($this->_('AuthorizeNetAcceptjs.sandbox', true), 'sandbox', ['class' => 'inline']);
             ?>

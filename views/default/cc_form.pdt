@@ -43,59 +43,70 @@
 
             // Process form
             $('#authorizenet-cc-form').closest('form').on('submit', processCard);
-        });
 
-        function processCard(event) {
-            event.preventDefault();
-
-            // Send data to Authorize.net
-            var authData = {};
-            authData.clientKey = '<?php echo $this->Html->safe($client_key ?? ''); ?>';
-            authData.apiLoginID = '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>';
-
-            var cardData = {};
-            cardData.cardNumber = $('#cardNumber').val();
-            cardData.month = $('#expMonth').val();
-            cardData.year = $('#expYear').val();
-            cardData.cardCode = $('#cardCode').val();
-            cardData.fullName = $('#first_name').val();
-            cardData.zip = $('#zip').val();
-
-            // Dispatch data
-            var secureData = {};
-            secureData.authData = authData;
-            secureData.cardData = cardData;
-
-            Accept.dispatchData(secureData, responseHandler);
-        }
-
-        function responseHandler(response) {
-            if (response.messages.resultCode !== "Error") {
-                $('#dataValue').val(response.opaqueData.dataValue);
-                $('#dataDescriptor').val(response.opaqueData.dataDescriptor);
-
-                // Pass the serialized opaque data as the reference id
-                var card = $('#cardNumber').val();
-                var masked_card = card.substring(0, 4);
-
-                for (let i = 4; i < card.length; i++) {
-                    masked_card += '0';
-                }
-
-                $('#reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
-                $('#client_reference_id').val(masked_card);
-                $('#last4').val(card.substring(card.length-4, card.length));
-                $('#expiration').val($('#expYear').val() + $('#expMonth').val());
-
-                // Remove secure data
-                $('#cardNumber').val('');
-                $('#expMonth').val('');
-                $('#expYear').val('');
-                $('#cardCode').val('');
+            // Disable form if SSL is not available
+            if (location.protocol !== "https:") {
+                $('#authorizenet-cc-form .form-group *').attr('disabled', true);
+                $('#submit_payment').attr('disabled', true);
             }
 
-            $('#authorizenet-cc-form').closest('form').off('submit', processCard);
-            $(this).blestaEnableFormSubmission($('#authorizenet-cc-form').closest('form'));
-            $('#authorizenet-cc-form').closest('form').submit();
-        }
+            function processCard(event) {
+                event.preventDefault();
+
+                // Disable ACH form
+                if ($('select[name="payment_type"]').val() == 'cc') {
+                    $('#payment_details_ach input').attr('disabled', true);
+                }
+
+                // Send data to Authorize.net
+                var authData = {};
+                authData.clientKey = '<?php echo $this->Html->safe($client_key ?? ''); ?>';
+                authData.apiLoginID = '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>';
+
+                var cardData = {};
+                cardData.cardNumber = $('#cardNumber').val();
+                cardData.month = $('#expMonth').val();
+                cardData.year = $('#expYear').val();
+                cardData.cardCode = $('#cardCode').val();
+                cardData.fullName = $('#first_name').val();
+                cardData.zip = $('#zip').val();
+
+                // Dispatch data
+                var secureData = {};
+                secureData.authData = authData;
+                secureData.cardData = cardData;
+
+                Accept.dispatchData(secureData, responseHandler);
+            }
+
+            function responseHandler(response) {
+                if (response.messages.resultCode !== "Error") {
+                    $('#dataValue').val(response.opaqueData.dataValue);
+                    $('#dataDescriptor').val(response.opaqueData.dataDescriptor);
+
+                    // Pass the serialized opaque data as the reference id
+                    var card = $('#cardNumber').val();
+                    var masked_card = card.substring(0, 4);
+
+                    for (let i = 4; i < card.length; i++) {
+                        masked_card += '0';
+                    }
+
+                    $('#reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
+                    $('#client_reference_id').val(masked_card);
+                    $('#last4').val(card.substring(card.length-4, card.length));
+                    $('#expiration').val($('#expYear').val() + $('#expMonth').val());
+
+                    // Remove secure data
+                    $('#cardNumber').val('');
+                    $('#expMonth').val('');
+                    $('#expYear').val('');
+                    $('#cardCode').val('');
+                }
+
+                $('#authorizenet-cc-form').closest('form').off('submit', processCard);
+                $(this).blestaEnableFormSubmission($('#authorizenet-cc-form').closest('form'));
+                $('#authorizenet-cc-form').closest('form').submit();
+            }
+        });
     </script>
