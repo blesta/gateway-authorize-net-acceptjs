@@ -1,4 +1,5 @@
-    <div id="authorizenet-cc-form">
+<div id="authorizenet-cc-form">
+    <div id="cc-element">
         <?php
         if (($meta['sandbox'] ?? 'false') == 'true') {
             ?>
@@ -28,15 +29,20 @@
             $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
             ?>
         </div>
-        <?php
-        $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
-        $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
-        $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
-        $this->Form->fieldHidden('client_reference_id', '', ['id' => 'client_reference_id']);
-        $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
-        $this->Form->fieldHidden('expiration', '', ['id' => 'expiration']);
-        ?>
     </div>
+
+    <!-- Used to display form errors. -->
+    <div id="cc-errors" class="text-danger" role="alert"></div>
+
+    <?php
+    $this->Form->fieldHidden('dataValue', '', ['id' => 'dataValue']);
+    $this->Form->fieldHidden('dataDescriptor', '', ['id' => 'dataDescriptor']);
+    $this->Form->fieldHidden('reference_id', '', ['id' => 'reference_id']);
+    $this->Form->fieldHidden('client_reference_id', '', ['id' => 'client_reference_id']);
+    $this->Form->fieldHidden('last4', '', ['id' => 'last4']);
+    $this->Form->fieldHidden('expiration', '', ['id' => 'expiration']);
+    ?>
+
     <script>
         $(document).ready(function() {
             $(this).blestaSetHeadTag("link", {media:"screen", type:"text/css", rel:"stylesheet", href: "<?php echo $this->Html->safe($this->view_dir . 'css/styles.css');?>"});
@@ -47,7 +53,7 @@
             // Disable form if SSL is not available
             if (location.protocol !== "https:") {
                 $('#authorizenet-cc-form .form-group *').attr('disabled', true);
-                $('#submit_payment').attr('disabled', true);
+                $('#authorizenet-cc-form').closest('form').find('button[type="submit"]').attr('disabled', true);
             }
 
             function processCard(event) {
@@ -64,10 +70,10 @@
                 authData.apiLoginID = '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>';
 
                 var cardData = {};
-                cardData.cardNumber = $('#cardNumber').val();
-                cardData.month = $('#expMonth').val();
-                cardData.year = $('#expYear').val();
-                cardData.cardCode = $('#cardCode').val();
+                cardData.cardNumber = $('#authorizenet-cc-form #cardNumber').val();
+                cardData.month = $('#authorizenet-cc-form #expMonth').val();
+                cardData.year = $('#authorizenet-cc-form #expYear').val();
+                cardData.cardCode = $('#authorizenet-cc-form #cardCode').val();
                 cardData.fullName = $('#first_name').val();
                 cardData.zip = $('#zip').val();
 
@@ -81,8 +87,8 @@
 
             function responseHandler(response) {
                 if (response.messages.resultCode !== "Error") {
-                    $('#dataValue').val(response.opaqueData.dataValue);
-                    $('#dataDescriptor').val(response.opaqueData.dataDescriptor);
+                    $('#authorizenet-cc-form #dataValue').val(response.opaqueData.dataValue);
+                    $('#authorizenet-cc-form #dataDescriptor').val(response.opaqueData.dataDescriptor);
 
                     // Pass the serialized opaque data as the reference id
                     var card = $('#cardNumber').val();
@@ -92,16 +98,18 @@
                         masked_card += '0';
                     }
 
-                    $('#reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
-                    $('#client_reference_id').val(masked_card);
-                    $('#last4').val(card.substring(card.length-4, card.length));
-                    $('#expiration').val($('#expYear').val() + $('#expMonth').val());
+                    $('#authorizenet-cc-form #reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
+                    $('#authorizenet-cc-form #client_reference_id').val(masked_card);
+                    $('#authorizenet-cc-form #last4').val(card.substring(card.length-4, card.length));
+                    $('#authorizenet-cc-form #expiration').val($('#expYear').val() + $('#expMonth').val());
 
                     // Remove secure data
-                    $('#cardNumber').val('');
-                    $('#expMonth').val('');
-                    $('#expYear').val('');
-                    $('#cardCode').val('');
+                    $('#authorizenet-cc-form #cc-element *').attr('disabled', true);
+                    $('#authorizenet-cc-form #cc-errors').text('');
+                } else {
+                    // Restore secure data
+                    $('#authorizenet-cc-form #cc-element *').attr('disabled', false);
+                    $('#authorizenet-cc-form #cc-errors').text(response.messages.text);
                 }
 
                 $('#authorizenet-cc-form').closest('form').off('submit', processCard);
@@ -110,3 +118,5 @@
             }
         });
     </script>
+</div>
+
