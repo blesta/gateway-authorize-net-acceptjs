@@ -1,5 +1,5 @@
 {
-    "version": "2.0.1",
+    "version": "2.0.2",
     "name": "AuthorizeNetAcceptjs.name",
     "description": "AuthorizeNetAcceptjs.description",
     "authors": [
@@ -14,5 +14,9 @@
         "EUR",
         "USD"
     ],
-    "signup_url": "http://go.evopayments.us/blesta"
+    "signup_url": "http://go.evopayments.us/blesta",
+    "logo": {
+        "light": "views/default/images/logo.svg",
+        "dark": "views/default/images/logo-dark.svg"
+    }
 }
