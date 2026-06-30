@@ -111,6 +111,9 @@
                 // The customer is entering a new card with this gateway only when the card form
                 // is actually visible. It is hidden when paying with a stored account or by ACH,
                 // in which case the form must submit normally without tokenizing a card.
+                // Note: offsetParent returns null for display:none (the case we rely on here)
+                // but also for position:fixed and collapsed <details> ancestors. If the wrapper
+                // is ever moved into either, this check will misreport visibility.
                 function enteringNewCard() {
                     return wrapper.offsetParent !== null;
                 }
