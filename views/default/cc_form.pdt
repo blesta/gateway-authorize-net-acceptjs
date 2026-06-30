@@ -25,9 +25,13 @@
         <div class="form-group">
             <?php
             $this->Form->label($this->_('AuthorizeNetAcceptjs.field_expiration', true), 'expMonth');
-            $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth']);
-            $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
             ?>
+            <div class="expiration-fields">
+                <?php
+                $this->Form->fieldSelect('expMonth', ($expiration['months'] ?? null), null, ['id' => 'expMonth']);
+                $this->Form->fieldSelect('expYear', ($expiration['years'] ?? null), null, ['id' => 'expYear']);
+                ?>
+            </div>
         </div>
     </div>
 
@@ -44,79 +48,171 @@
     ?>
 
     <script>
-        $(document).ready(function() {
-            $(this).blestaSetHeadTag("link", {media:"screen", type:"text/css", rel:"stylesheet", href: "<?php echo $this->Html->safe($this->view_dir . 'css/styles.css');?>"});
-
-            // Process form
-            $('#authorizenet-cc-form').closest('form').on('submit', processCard);
-
-            // Disable form if SSL is not available
-            if (location.protocol !== "https:") {
-                $('#authorizenet-cc-form .form-group *').attr('disabled', true);
-                $('#authorizenet-cc-form').closest('form').find('button[type="submit"]').attr('disabled', true);
-            }
-
-            function processCard(event) {
-                event.preventDefault();
-
-                // Disable ACH form
-                if ($('select[name="payment_type"]').val() === 'cc') {
-                    $('input,select,textarea', '#payment_details_ach').attr('disabled', true);
+        // Vanilla JS so the form works in every theme (the Paradigm admin theme has no jQuery)
+        (function () {
+            function init() {
+                var wrapper = document.getElementById('authorizenet-cc-form');
+                if (!wrapper) {
+                    return;
                 }
 
-                // Send data to Authorize.net
-                var authData = {};
-                authData.clientKey = '<?php echo $this->Html->safe($client_key ?? ''); ?>';
-                authData.apiLoginID = '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>';
+                var form = wrapper.closest('form');
+                if (!form) {
+                    return;
+                }
 
-                var cardData = {};
-                cardData.cardNumber = $('#authorizenet-cc-form #cardNumber').val();
-                cardData.month = $('#authorizenet-cc-form #expMonth').val();
-                cardData.year = $('#authorizenet-cc-form #expYear').val();
-                cardData.cardCode = $('#authorizenet-cc-form #cardCode').val();
-                cardData.fullName = $('#first_name').val();
-                cardData.zip = $('#zip').val();
+                // Load the gateway stylesheet
+                if (!document.querySelector('link[data-authnet-acceptjs]')) {
+                    var link = document.createElement('link');
+                    link.setAttribute('data-authnet-acceptjs', '');
+                    link.rel = 'stylesheet';
+                    link.media = 'screen';
+                    link.type = 'text/css';
+                    link.href = '<?php echo $this->Html->safe($this->view_dir . 'css/styles.css');?>';
+                    document.head.appendChild(link);
+                }
 
-                // Dispatch data
-                var secureData = {};
-                secureData.authData = authData;
-                secureData.cardData = cardData;
+                // Disable card entry if SSL is not available. Accept.js requires HTTPS to
+                // tokenize a card; localhost is allowed so the form can be used in development.
+                // Only the card fields are disabled - never the shared submit button, so paying
+                // with a stored account is not blocked.
+                var isDevHost = ['localhost', '127.0.0.1', '[::1]'].indexOf(location.hostname) !== -1;
+                if (location.protocol !== 'https:' && !isDevHost) {
+                    wrapper.querySelectorAll('#cc-element input, #cc-element select').forEach(function (el) {
+                        el.disabled = true;
+                    });
+                }
 
-                Accept.dispatchData(secureData, responseHandler);
-            }
+                form.addEventListener('submit', processCard);
 
-            function responseHandler(response) {
-                if (response.messages.resultCode !== "Error") {
-                    $('#authorizenet-cc-form #dataValue').val(response.opaqueData.dataValue);
-                    $('#authorizenet-cc-form #dataDescriptor').val(response.opaqueData.dataDescriptor);
+                function fieldValue(id) {
+                    var el = document.getElementById(id);
 
-                    // Pass the serialized opaque data as the reference id
-                    var card = $('#cardNumber').val();
-                    var masked_card = card.substring(0, 4);
+                    return el ? el.value : '';
+                }
 
-                    for (let i = 4; i < card.length; i++) {
-                        masked_card += '0';
+                function setFieldValue(id, value) {
+                    var el = document.getElementById(id);
+                    if (el) {
+                        el.value = value;
+                    }
+                }
+
+                // Re-enable form submission so the customer can correct errors and retry
+                function enableFormSubmission() {
+                    form.dataset.submitted = 'false';
+                    form.dataset.submitting = 'false';
+                    form.querySelectorAll('input[type="submit"], button[type="submit"]').forEach(function (btn) {
+                        btn.disabled = false;
+                        btn.classList.remove('disabled');
+                    });
+                }
+
+                // The customer is entering a new card with this gateway only when the card form
+                // is actually visible. It is hidden when paying with a stored account or by ACH,
+                // in which case the form must submit normally without tokenizing a card.
+                // Note: offsetParent returns null for display:none (the case we rely on here)
+                // but also for position:fixed and collapsed <details> ancestors. If the wrapper
+                // is ever moved into either, this check will misreport visibility.
+                function enteringNewCard() {
+                    return wrapper.offsetParent !== null;
+                }
+
+                function processCard(event) {
+                    // Let the form submit normally when not entering a new card
+                    // (stored payment account, ACH, or another payment method)
+                    if (!enteringNewCard()) {
+                        return;
                     }
 
-                    $('#authorizenet-cc-form #reference_id').val(response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
-                    $('#authorizenet-cc-form #client_reference_id').val(masked_card);
-                    $('#authorizenet-cc-form #last4').val(card.substring(card.length-4, card.length));
-                    $('#authorizenet-cc-form #expiration').val($('#expYear').val() + $('#expMonth').val());
+                    event.preventDefault();
 
-                    // Remove secure data
-                    $('#authorizenet-cc-form #cc-element *').attr('disabled', true);
-                    $('#authorizenet-cc-form #cc-errors').text('');
-                } else {
-                    // Restore secure data
-                    $('#authorizenet-cc-form #cc-element *').attr('disabled', false);
-                    $('#authorizenet-cc-form #cc-errors').text(response.messages.text);
+                    // Disable the ACH form so its fields are not submitted
+                    var ach = document.getElementById('payment_details_ach');
+                    if (ach) {
+                        ach.querySelectorAll('input, select, textarea').forEach(function (el) {
+                            el.disabled = true;
+                        });
+                    }
+
+                    // Send the card data to Authorize.net
+                    var secureData = {
+                        authData: {
+                            clientKey: '<?php echo $this->Html->safe($client_key ?? ''); ?>',
+                            apiLoginID: '<?php echo $this->Html->safe($meta['login_id'] ?? ''); ?>'
+                        },
+                        cardData: {
+                            cardNumber: fieldValue('cardNumber'),
+                            month: fieldValue('expMonth'),
+                            year: fieldValue('expYear'),
+                            cardCode: fieldValue('cardCode'),
+                            fullName: fieldValue('first_name'),
+                            zip: fieldValue('zip')
+                        }
+                    };
+
+                    Accept.dispatchData(secureData, responseHandler);
                 }
 
-                $('#authorizenet-cc-form').closest('form').off('submit', processCard);
-                $(this).blestaEnableFormSubmission($('#authorizenet-cc-form').closest('form'));
-                $('#authorizenet-cc-form').closest('form').submit();
+                function responseHandler(response) {
+                    var errors = document.getElementById('cc-errors');
+
+                    if (response.messages.resultCode === 'Error') {
+                        // Restore the secure data fields and display the error
+                        wrapper.querySelectorAll('#cc-element input, #cc-element select').forEach(function (el) {
+                            el.disabled = false;
+                        });
+
+                        if (errors) {
+                            var message = (response.messages.message && response.messages.message[0])
+                                ? response.messages.message[0].text
+                                : '';
+                            errors.textContent = message;
+                        }
+
+                        enableFormSubmission();
+
+                        return;
+                    }
+
+                    setFieldValue('dataValue', response.opaqueData.dataValue);
+                    setFieldValue('dataDescriptor', response.opaqueData.dataDescriptor);
+
+                    // Build a masked card number for the storage reference
+                    var card = fieldValue('cardNumber');
+                    var maskedCard = card.substring(0, 4);
+                    for (var i = 4; i < card.length; i++) {
+                        maskedCard += '0';
+                    }
+
+                    // Pass the serialized opaque data as the reference id
+                    setFieldValue('reference_id', response.opaqueData.dataValue + '|' + response.opaqueData.dataDescriptor);
+                    setFieldValue('client_reference_id', maskedCard);
+                    setFieldValue('last4', card.substring(card.length - 4));
+                    setFieldValue('expiration', fieldValue('expYear') + fieldValue('expMonth'));
+
+                    // Remove the secure data so the raw card details are not submitted
+                    wrapper.querySelectorAll('#cc-element input, #cc-element select').forEach(function (el) {
+                        el.disabled = true;
+                    });
+
+                    if (errors) {
+                        errors.textContent = '';
+                    }
+
+                    // Resubmit the form, bypassing this handler
+                    form.removeEventListener('submit', processCard);
+                    enableFormSubmission();
+                    form.submit();
+                }
             }
-        });
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
     </script>
 </div>
 

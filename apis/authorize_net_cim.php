@@ -60,6 +60,18 @@ class AuthorizeNetCim
      * @var string The currency to use
      */
     private $currency;
+    /**
+     * @var Xml The XML helper, lazily loaded in submit(). Public because Loader assigns it from outside the class.
+     */
+    public $Xml;
+    /**
+     * @var Net The Net component factory, lazily loaded in submit(). Public because Loader assigns it from outside the class.
+     */
+    public $Net;
+    /**
+     * @var Http The HTTP client used to post requests, lazily loaded in submit()
+     */
+    public $Http;
 
     /**
      * Initializes the request parameter
